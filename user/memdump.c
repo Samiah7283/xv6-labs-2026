@@ -39,7 +39,6 @@ main(int argc, char *argv[])
     printf("Example 5:\n");
     memdump("sccccc", (char *)&example, sizeof(example));
   } else if (argc == 2) {
-    // format in argv[1], up to 512 bytes of data from standard input.
     char data[512];
     int n = 0;
     memset(data, '\0', sizeof(data));
@@ -59,7 +58,56 @@ main(int argc, char *argv[])
 
 void
 memdump(char *fmt, char *data, int len)
-{
-  // Your code here.  `data` holds `len` valid bytes.
+{ int pos = 0;
+  char *f;
 
+  for(f = fmt; *f; f++){
+    char spec = *f;
+
+    if(spec == 'S'){
+      int i;
+      for(i = pos; i < len && data[i] != '\0'; i++)
+        printf("%c", data[i]);
+      printf("\n");
+      pos = len;
+      continue;
+    }
+
+    int need = 0;
+    if(spec == 'i') need = 4;
+    else if(spec == 'p') need = 8;
+    else if(spec == 'h') need = 2;
+    else if(spec == 'c') need = 1;
+    else if(spec == 's') need = 8;
+if(pos + need > len){
+      printf("memdump: not enough data for '%c'\n", spec);
+      return;
+    }
+
+    if(spec == 'i'){
+      int v;
+      memmove(&v, data + pos, 4);
+      printf("%d\n", v);
+    } else if(spec == 'p'){
+      uint64 v;
+      memmove(&v, data + pos, 8);
+      int i;
+      for(i = 60; i >= 0; i -= 4)
+        printf("%x", (unsigned int)((v >> i) & 0xf));
+      printf("\n");
+    } else if(spec == 'h'){
+      short v;
+      memmove(&v, data + pos, 2);
+      printf("%d\n", v);
+    } else if(spec == 'c'){
+      printf("%c\n", data[pos]);
+    } else if(spec == 's'){
+      char *strp;
+      memmove(&strp, data + pos, 8);
+      printf("%s\n", strp);
+    }
+
+    pos += need;
+  }
+ 
 }
