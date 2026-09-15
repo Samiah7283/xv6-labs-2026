@@ -203,6 +203,9 @@ UPROGS=\
 	$U/_forphan\
 	$U/_dorphan\
 	$U/_sync\
+        $U/_sleep\
+        $U/_sixfive\
+        $U/_find\
         $U/_uptime\
 
 
@@ -219,7 +222,6 @@ UPROGS += \
 	$U/_call\
 	$U/_bttest
 endif
-
 ifeq ($(LAB),lazy)
 UPROGS += \
 	$U/_lazytests
