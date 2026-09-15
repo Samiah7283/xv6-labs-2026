@@ -179,10 +179,21 @@ main(void)
       cmd[strlen(cmd) - 1] = 0; // chop \n
       if (chdir(cmd + 3) < 0)
         fprintf(2, "cannot cd %s\n", cmd + 3);
+        } else if(strcmp(cmd, "wait\n") == 0){
+      while(wait(0) != -1)
+        ;
     } else {
-      if (fork1() == 0)
-        runcmd(parsecmd(cmd));
-      wait(0);
+      struct cmd *parsed = parsecmd(cmd);
+      if(parsed->type == BACK){
+        struct backcmd *bcmd = (struct backcmd*)parsed;
+        if(fork1() == 0)
+          runcmd(bcmd->cmd);
+        // don't wait — stays a live child for "wait" to reap later
+      } else {
+        if(fork1() == 0)
+          runcmd(parsed);
+        wait(0);
+      }
     }
   }
   exit(0);
