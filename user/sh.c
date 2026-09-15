@@ -134,6 +134,62 @@ runcmd(struct cmd *cmd)
 
 int interactive = 1;
 
+#define HISTSIZE 10
+char history[HISTSIZE][100];
+int histcount = 0;
+
+int
+str2int(char *s)
+{
+  int n = 0;
+  while(*s >= '0' && *s <= '9'){
+    n = n * 10 + (*s - '0');
+    s++;
+  }
+  return n;
+}
+
+void
+addhistory(char *cmd)
+{
+  strcpy(history[histcount % HISTSIZE], cmd);
+  histcount++;
+}
+
+void
+printhistory(void)
+{
+  int start = histcount > HISTSIZE ? histcount - HISTSIZE : 0;
+  int i;
+  for(i = start; i < histcount; i++)
+    printf("%d  %s", i + 1, history[i % HISTSIZE]);
+}
+
+// returns 1 and fills buf if resolved, -1 on error, 0 if not a history ref
+int
+resolvehistory(char *cmd, char *buf, int nbuf)
+{
+  if(cmd[0] != '!')
+    return 0;
+
+  if(cmd[1] == '!'){
+    if(histcount == 0){
+      fprintf(2, "sh: no history\n");
+      return -1;
+    }
+    strcpy(buf, history[(histcount - 1) % HISTSIZE]);
+    return 1;
+  }
+
+  int n = str2int(cmd + 1);
+  if(n < 1 || n > histcount || n <= histcount - HISTSIZE){
+    fprintf(2, "sh: no such history entry\n");
+    return -1;
+  }
+  strcpy(buf, history[(n - 1) % HISTSIZE]);
+  return 1;
+}
+
 int
 getcmd(char *buf, int nbuf)
 {
@@ -179,16 +235,35 @@ main(void)
       cmd[strlen(cmd) - 1] = 0; // chop \n
       if (chdir(cmd + 3) < 0)
         fprintf(2, "cannot cd %s\n", cmd + 3);
-        } else if(strcmp(cmd, "wait\n") == 0){
+            } else if(strcmp(cmd, "history\n") == 0){
+      printhistory();
+    } else if(cmd[0] == '!'){
+      static char resolved[100];
+      int r = resolvehistory(cmd, resolved, sizeof(resolved));
+      if(r == 1){
+        printf("%s", resolved);
+        addhistory(resolved);
+        if(strcmp(resolved, "wait\n") == 0){
+          while(wait(0) != -1)
+            ;
+        } else {
+          struct cmd *parsed = parsecmd(resolved);
+          if(fork1() == 0)
+            runcmd(parsed);
+          wait(0);
+        }
+      }
+    } else if(strcmp(cmd, "wait\n") == 0){
+      addhistory(cmd);
       while(wait(0) != -1)
         ;
     } else {
+      addhistory(cmd);
       struct cmd *parsed = parsecmd(cmd);
       if(parsed->type == BACK){
         struct backcmd *bcmd = (struct backcmd*)parsed;
         if(fork1() == 0)
           runcmd(bcmd->cmd);
-        // don't wait — stays a live child for "wait" to reap later
       } else {
         if(fork1() == 0)
           runcmd(parsed);
