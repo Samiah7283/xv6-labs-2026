@@ -1,6 +1,7 @@
 // Shell.
 
 #include "kernel/types.h"
+#include "kernel/stat.h"
 #include "user/user.h"
 #include "kernel/fcntl.h"
 
@@ -131,10 +132,13 @@ runcmd(struct cmd *cmd)
   exit(0);
 }
 
+int interactive = 1;
+
 int
 getcmd(char *buf, int nbuf)
 {
-  write(2, "$ ", 2);
+  if(interactive)
+    write(2, "$ ", 2);
   memset(buf, 0, nbuf);
   gets(buf, nbuf);
   if (buf[0] == 0) // EOF
@@ -147,6 +151,7 @@ main(void)
 {
   static char buf[100];
   int fd;
+  struct stat st;
 
   // Ensure that three file descriptors are open.
   while ((fd = open("console", O_RDWR)) >= 0) {
@@ -154,6 +159,12 @@ main(void)
       close(fd);
       break;
     }
+  }
+
+  if(fstat(0, &st) < 0){
+    fprintf(2, "sh: cannot stat stdin\n");
+  } else if(st.type == T_FILE){
+    interactive = 0;
   }
 
   // Read and run input commands.
