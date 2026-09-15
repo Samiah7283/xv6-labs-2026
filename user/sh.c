@@ -4,6 +4,7 @@
 #include "kernel/stat.h"
 #include "user/user.h"
 #include "kernel/fcntl.h"
+#include "kernel/fs.h"
 
 // Parsed command representation
 #define EXEC  1
@@ -167,6 +168,48 @@ printhistory(void)
 
 // returns 1 and fills buf if resolved, -1 on error, 0 if not a history ref
 int
+strncmp(const char *p, const char *q, int n)
+{
+  while(n > 0 && *p && *p == *q){
+    p++;
+    q++;
+    n--;
+  }
+  if(n == 0)
+    return 0;
+  return (uchar)*p - (uchar)*q;
+}
+
+void
+completeprefix(char *prefix)
+{
+  int fd;
+  struct dirent de;
+  int plen = strlen(prefix);
+  int found = 0;
+
+  if((fd = open(".", 0)) < 0){
+    fprintf(2, "sh: cannot open .\n");
+    return;
+  }
+
+  while(read(fd, &de, sizeof(de)) == sizeof(de)){
+    if(de.inum == 0)
+      continue;
+    char name[DIRSIZ + 1];
+    memmove(name, de.name, DIRSIZ);
+    name[DIRSIZ] = 0;
+    if(strncmp(name, prefix, plen) == 0){
+      printf("%s\n", name);
+      found = 1;
+    }
+  }
+  close(fd);
+
+  if(!found)
+    printf("sh: no matches for '%s'\n", prefix);
+}
+int
 resolvehistory(char *cmd, char *buf, int nbuf)
 {
   if(cmd[0] != '!')
@@ -189,6 +232,8 @@ resolvehistory(char *cmd, char *buf, int nbuf)
   strcpy(buf, history[(n - 1) % HISTSIZE]);
   return 1;
 }
+
+
 
 int
 getcmd(char *buf, int nbuf)
@@ -235,7 +280,14 @@ main(void)
       cmd[strlen(cmd) - 1] = 0; // chop \n
       if (chdir(cmd + 3) < 0)
         fprintf(2, "cannot cd %s\n", cmd + 3);
-            } else if(strcmp(cmd, "history\n") == 0){
+    } else if(strncmp(cmd, "complete ", 9) == 0){
+      char *prefix = cmd + 9;
+      int len = strlen(prefix);
+      if(len > 0 && prefix[len - 1] == '\n')
+        prefix[len - 1] = 0;
+      addhistory(cmd);
+      completeprefix(prefix); 
+    } else if(strcmp(cmd, "history\n") == 0){
       printhistory();
     } else if(cmd[0] == '!'){
       static char resolved[100];
